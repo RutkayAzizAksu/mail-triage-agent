@@ -58,14 +58,14 @@ text).
 
 ```mermaid
 flowchart LR
-    A["📥 Inbox"] -->|IMAP| B{"Matches sender\nor keyword?"}
+    A["Inbox"] -->|IMAP| B{"Matches sender<br/>or keyword?"}
     B -->|no| Z["Left untouched"]
-    B -->|yes| C["🤖 LLM\nanalysis"]
-    C --> D["📄 report.md"]
-    C --> E["✏️ draft reply.md"]
-    E --> F["👤 You review\n& edit"]
-    F -->|"mail-triage-agent send"| G["📤 SMTP"]
-    G --> H["✅ Sent"]
+    B -->|yes| C["LLM<br/>analysis"]
+    C --> D["report.md"]
+    C --> E["draft reply.md"]
+    E --> F["You review<br/>&amp; edit"]
+    F -->|"mail-triage-agent send"| G["SMTP"]
+    G --> H["Sent"]
 
     style A fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
     style C fill:#fdf0e8,stroke:#d97706,color:#1a1a1a
