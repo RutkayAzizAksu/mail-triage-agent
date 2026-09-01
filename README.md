@@ -1,0 +1,176 @@
+# Mail Triage Agent
+
+A small, self-hosted agent that watches your inbox for emails from senders or
+containing keywords **you** choose, analyzes each match with Claude, and
+writes a report + a draft reply for you to review, edit, and send. Nothing is
+sent automatically — every reply goes out only when you run `send` yourself.
+
+Works with **any standard IMAP/SMTP mail provider** — Gmail, Outlook /
+Microsoft 365, Yahoo, iCloud, Zoho, or most corporate mail servers. It's a
+plain Python script you run on your own machine; your mail and API keys never
+leave your computer except for the two connections it makes on your behalf:
+your mail server (IMAP/SMTP) and the Anthropic API (to analyze the email
+text).
+
+## How it works
+
+```
+inbox ──IMAP──▶ filter (sender / keyword) ──▶ Claude analysis ──▶ report.md + draft reply.md
+                                                                          │
+                                                              you read & edit the draft
+                                                                          │
+                                                                    `check send`
+                                                                          │
+                                                                       SMTP ──▶ sent
+```
+
+1. `check` connects to your inbox over IMAP and looks at recent messages.
+2. Each message is matched against `WATCH_SENDERS` / `WATCH_KEYWORDS` from
+   your config. Non-matching mail is skipped and left untouched.
+3. Matching mail is sent to Claude, which returns a summary, category,
+   priority, suggested action, and a draft reply.
+4. Two files are written to `data/drafts/`:
+   - `<id>.report.md` — the analysis, for you to read.
+   - `<id>.reply.md` — the editable draft reply (plain text with a small
+     metadata header). Open it in any text editor and change anything you
+     want.
+5. `send <file>` sends the (possibly edited) draft over SMTP, threaded as a
+   reply to the original message.
+6. Already-processed messages are remembered in `data/state.json`, so running
+   `check` again (e.g. from a cron job) never creates duplicate drafts.
+
+Nothing is ever sent without you explicitly running `send`.
+
+## Requirements
+
+- Python 3.9+
+- An [Anthropic API key](https://console.anthropic.com/) (pay-as-you-go — you
+  are billed by Anthropic only for the emails you actually analyze; the
+  project itself is free and open source)
+- IMAP/SMTP access to your mailbox, usually via an **app-specific password**
+  (see the provider table below)
+
+## Setup
+
+```bash
+git clone https://github.com/RutkayAzizAksu/mail-triage-agent.git
+cd mail-triage-agent
+
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
+
+cp .env.example .env
+# now edit .env with your own values (see below)
+```
+
+### Filling in `.env`
+
+Open `.env` and set:
+
+- `IMAP_HOST` / `IMAP_PORT` / `IMAP_USER` / `IMAP_PASSWORD` — your mailbox.
+- `SMTP_HOST` / `SMTP_PORT` — your outgoing server (`SMTP_USER`/`SMTP_PASSWORD`
+  default to your IMAP credentials if left blank).
+- `ANTHROPIC_API_KEY` — your Claude API key.
+- `WATCH_SENDERS` — comma-separated email addresses/domains to watch for,
+  e.g. `boss@example.com,billing@vendor.com`.
+- `WATCH_KEYWORDS` — comma-separated words to watch for in the subject/body,
+  e.g. `urgent,invoice,contract`.
+
+You need at least one of `WATCH_SENDERS` or `WATCH_KEYWORDS` set — otherwise
+the agent has nothing to filter on and refuses to start (with a clear error,
+not a crash).
+
+### Provider settings
+
+Most providers block plain-password IMAP/SMTP login for third-party apps by
+default — you need to generate an **app-specific password** first.
+
+| Provider | IMAP host | SMTP host | App password |
+|---|---|---|---|
+| Gmail / Google Workspace | `imap.gmail.com:993` | `smtp.gmail.com:587` | [Generate one](https://myaccount.google.com/apppasswords) (requires 2-Step Verification enabled) |
+| Outlook / Microsoft 365 | `outlook.office365.com:993` | `smtp.office365.com:587` | [Generate one](https://account.microsoft.com/security) under Security → Advanced security options |
+| Yahoo Mail | `imap.mail.yahoo.com:993` | `smtp.mail.yahoo.com:587` | Account Info → Account Security → Generate app password |
+| iCloud Mail | `imap.mail.me.com:993` | `smtp.mail.me.com:587` | [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords |
+| Other / corporate | ask your mail admin | ask your mail admin | ask your mail admin |
+
+If your provider uses implicit SSL on the SMTP port (typically port 465
+instead of 587 with STARTTLS), set `SMTP_USE_SSL=true`.
+
+## Usage
+
+```bash
+# 1. Scan the inbox for new matching mail, analyze it, write drafts
+python -m mail_triage_agent check
+
+# 2. See what drafts are waiting for you
+python -m mail_triage_agent list
+
+# 3. Open data/drafts/<id>.reply.md in your editor, edit the reply text
+#    (the YAML header at the top — to/subject/etc. — can be edited too)
+
+# 4. Send it once you're happy with it
+python -m mail_triage_agent send <id>-your-subject.reply.md
+```
+
+If you installed the package (`pip install -e .` or via `pyproject.toml`),
+the `mail-triage-agent` command is also available directly, e.g.
+`mail-triage-agent check`.
+
+### Running on a schedule
+
+The agent is a one-shot script — `check` does a single pass and exits — so
+you drive it with your OS's scheduler.
+
+**macOS / Linux (cron)** — run every 10 minutes:
+
+```cron
+*/10 * * * * cd /path/to/mail-triage-agent && .venv/bin/python -m mail_triage_agent check >> data/cron.log 2>&1
+```
+
+**Windows (Task Scheduler)** — create a Basic Task, trigger "Repeat every 10
+minutes", action:
+
+```
+Program: C:\path\to\mail-triage-agent\.venv\Scripts\python.exe
+Arguments: -m mail_triage_agent check
+Start in: C:\path\to\mail-triage-agent
+```
+
+## Cost & privacy
+
+- The project itself is free — there is no subscription or hidden fee.
+- Each `check` run costs a small amount of Anthropic API usage, billed
+  directly to your own API key, only for the emails that actually match your
+  filters.
+- Your mail credentials and API key live only in your local `.env` file
+  (already git-ignored) — they are never uploaded anywhere by this project.
+- Email content is sent to the Anthropic API for analysis only for messages
+  that match your `WATCH_SENDERS`/`WATCH_KEYWORDS` filters — everything else
+  is left untouched on the server.
+
+## Troubleshooting
+
+- **"Could not connect/login to ... "** — almost always means you used your
+  normal account password instead of an app-specific password, or 2FA isn't
+  enabled (required by Gmail/Outlook to issue app passwords).
+- **"Set at least one of WATCH_SENDERS or WATCH_KEYWORDS"** — your `.env` has
+  neither filter set; add at least one.
+- **"Claude did not return valid JSON"** — transient model hiccup; just run
+  `check` again, the unprocessed message will be retried.
+- **No drafts appear** — check that the matching email is actually unread
+  (the default `check` only scans unseen mail — pass `--include-seen` to scan
+  read mail too).
+
+## Development
+
+```bash
+pip install -r requirements.txt
+python -m unittest discover -s tests -v
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE). You're free to use, modify, and redistribute
+this project; keep the copyright notice.
