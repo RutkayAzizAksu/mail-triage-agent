@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-
-import anthropic
+from typing import Callable, Dict
 
 from .filters import EmailMessage
 
@@ -35,12 +34,66 @@ class Analysis:
 
 
 class AnalyzerError(RuntimeError):
-    """Raised when the Claude API call fails or returns something we can't parse."""
+    """Raised when the LLM API call fails or returns something we can't parse."""
+
+
+def _call_anthropic(api_key: str, model: str, user_content: str) -> str:
+    import anthropic  # imported lazily so users who only use OpenAI don't need this installed
+
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_content}],
+        )
+    except anthropic.APIError as exc:
+        raise AnalyzerError(f"Anthropic API call failed: {exc}") from exc
+
+    return "".join(
+        block.text for block in response.content if getattr(block, "type", None) == "text"
+    ).strip()
+
+
+def _call_openai(api_key: str, model: str, user_content: str) -> str:
+    import openai  # imported lazily so users who only use Anthropic don't need this installed
+
+    client = openai.OpenAI(api_key=api_key)
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=1024,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+        )
+    except openai.OpenAIError as exc:
+        raise AnalyzerError(f"OpenAI API call failed: {exc}") from exc
+
+    return (response.choices[0].message.content or "").strip()
+
+
+_PROVIDERS: Dict[str, Callable[[str, str, str], str]] = {
+    "anthropic": _call_anthropic,
+    "openai": _call_openai,
+}
 
 
 class EmailAnalyzer:
-    def __init__(self, api_key: str, model: str):
-        self.client = anthropic.Anthropic(api_key=api_key)
+    """Analyzes an email using whichever LLM provider the user configured
+    (bring your own API key — Anthropic Claude and OpenAI are both supported)."""
+
+    def __init__(self, provider: str, api_key: str, model: str):
+        provider = provider.strip().lower()
+        if provider not in _PROVIDERS:
+            raise AnalyzerError(
+                f"Unknown LLM_PROVIDER {provider!r}. Supported providers: {', '.join(_PROVIDERS)}."
+            )
+        self._call = _PROVIDERS[provider]
+        self.provider = provider
+        self.api_key = api_key
         self.model = model
 
     def analyze(self, message: EmailMessage) -> Analysis:
@@ -51,21 +104,9 @@ class EmailAnalyzer:
             f"{message.body[:8000]}"
         )
 
-        try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_content}],
-            )
-        except anthropic.APIError as exc:
-            raise AnalyzerError(f"Anthropic API call failed: {exc}") from exc
+        text = self._call(self.api_key, self.model, user_content)
 
-        text = "".join(
-            block.text for block in response.content if getattr(block, "type", None) == "text"
-        ).strip()
-
-        # Claude sometimes wraps JSON in ```json fences despite instructions; strip them defensively.
+        # Models sometimes wrap JSON in ```json fences despite instructions; strip them defensively.
         if text.startswith("```"):
             text = text.strip("`")
             if text.startswith("json"):
@@ -75,7 +116,7 @@ class EmailAnalyzer:
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise AnalyzerError(f"Claude did not return valid JSON: {text[:500]!r}") from exc
+            raise AnalyzerError(f"{self.provider} did not return valid JSON: {text[:500]!r}") from exc
 
         return Analysis(
             summary=str(data.get("summary", "")),

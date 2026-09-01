@@ -17,7 +17,7 @@ from .state import ProcessedState
 def cmd_check(args: argparse.Namespace) -> int:
     config = load_config(args.env_file)
     state = ProcessedState(config.state_file)
-    analyzer = EmailAnalyzer(config.anthropic_api_key, config.anthropic_model)
+    analyzer = EmailAnalyzer(config.llm_provider, config.llm_api_key, config.llm_model)
 
     created = 0
     scanned = 0

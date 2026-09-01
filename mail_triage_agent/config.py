@@ -7,6 +7,11 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
+_DEFAULT_MODELS = {
+    "anthropic": "claude-sonnet-5",
+    "openai": "gpt-4o-mini",
+}
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing or invalid."""
@@ -30,8 +35,9 @@ class Config:
     smtp_password: str
     smtp_use_ssl: bool
 
-    anthropic_api_key: str
-    anthropic_model: str
+    llm_provider: str
+    llm_api_key: str
+    llm_model: str
 
     watch_senders: List[str]
     watch_keywords: List[str]
@@ -69,6 +75,19 @@ def load_config(env_file: Optional[str] = None) -> Config:
             "otherwise the agent has nothing to filter on."
         )
 
+    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic").strip().lower()
+    if llm_provider not in _DEFAULT_MODELS:
+        raise ConfigError(
+            f"Unknown LLM_PROVIDER {llm_provider!r} in your .env file. "
+            f"Supported providers: {', '.join(_DEFAULT_MODELS)}."
+        )
+    if llm_provider == "anthropic":
+        llm_api_key = require("ANTHROPIC_API_KEY")
+        llm_model = os.environ.get("ANTHROPIC_MODEL", "").strip() or _DEFAULT_MODELS["anthropic"]
+    else:
+        llm_api_key = require("OPENAI_API_KEY")
+        llm_model = os.environ.get("OPENAI_MODEL", "").strip() or _DEFAULT_MODELS["openai"]
+
     imap_user = require("IMAP_USER")
     imap_password = require("IMAP_PASSWORD")
     data_dir = Path(os.environ.get("DATA_DIR", "./data")).expanduser().resolve()
@@ -84,8 +103,9 @@ def load_config(env_file: Optional[str] = None) -> Config:
         smtp_user=os.environ.get("SMTP_USER", "").strip() or imap_user,
         smtp_password=os.environ.get("SMTP_PASSWORD", "").strip() or imap_password,
         smtp_use_ssl=os.environ.get("SMTP_USE_SSL", "false").lower() == "true",
-        anthropic_api_key=require("ANTHROPIC_API_KEY"),
-        anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5"),
+        llm_provider=llm_provider,
+        llm_api_key=llm_api_key,
+        llm_model=llm_model,
         watch_senders=watch_senders,
         watch_keywords=watch_keywords,
         match_mode=os.environ.get("MATCH_MODE", "any").lower(),

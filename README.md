@@ -6,31 +6,35 @@
 [![Powered by Claude](https://img.shields.io/badge/powered%20by-Claude-d97706.svg)](https://www.anthropic.com/claude)
 
 A small, self-hosted agent that watches your inbox for emails from senders or
-containing keywords **you** choose, analyzes each match with Claude, and
+containing keywords **you** choose, analyzes each match with an LLM, and
 writes a report + a draft reply for you to review, edit, and send. Nothing is
 sent automatically — every reply goes out only when you run `send` yourself.
 
 Works with **any standard IMAP/SMTP mail provider** — Gmail, Outlook /
-Microsoft 365, Yahoo, iCloud, Zoho, or most corporate mail servers. It's a
-plain Python script you run on your own machine; your mail and API keys never
-leave your computer except for the two connections it makes on your behalf:
-your mail server (IMAP/SMTP) and the Anthropic API (to analyze the email
-text).
+Microsoft 365, Yahoo, iCloud, Zoho, or most corporate mail servers — and lets
+you **bring your own AI provider and API key**: Anthropic Claude or OpenAI,
+your choice. It's a plain Python script you run on your own machine; your
+mail and API keys never leave your computer except for the two connections it
+makes on your behalf: your mail server (IMAP/SMTP) and your chosen AI
+provider's API (to analyze the email text).
 
 ## Features
 
-- 🔍 **Filter by sender or keyword** — you decide what's worth Claude's time.
-- 🤖 **Claude-powered analysis** — summary, category, priority, and a
-  suggested action for every match.
+- 🔍 **Filter by sender or keyword** — you decide what's worth analyzing.
+- 🤖 **Bring your own AI provider** — Anthropic Claude or OpenAI, selected by
+  one `.env` setting; the agent only ever uses the API key you provide.
+- 🧠 **LLM-powered analysis** — summary, category, priority, and a suggested
+  action for every match.
 - ✏️ **Human-in-the-loop drafts** — every reply is a plain-text file you read
   and edit before anything goes out; nothing sends itself.
-- 📬 **Provider-agnostic** — standard IMAP/SMTP, so it works with Gmail,
+- 📬 **Provider-agnostic mail** — standard IMAP/SMTP, so it works with Gmail,
   Outlook, Yahoo, iCloud, and most corporate mail servers.
 - 🔁 **Idempotent by design** — a local state file means re-running `check`
   (e.g. from cron) never creates duplicate drafts.
 - 🔒 **Local-first** — credentials live only in your own `.env`; nothing is
-  ever sent anywhere except your mail server and the Anthropic API.
-- ✅ **Tested** — unit tests plus mocked end-to-end smoke tests, run on
+  ever sent anywhere except your mail server and your chosen AI provider.
+- ✅ **Tested** — unit tests, mocked end-to-end smoke tests, and a real
+  IMAP/SMTP network round-trip against a disposable local mail server, run on
   Python 3.9–3.13 in CI on every push.
 
 ## Table of contents
@@ -51,7 +55,7 @@ text).
 flowchart LR
     A["📥 Inbox"] -->|IMAP| B{"Matches sender\nor keyword?"}
     B -->|no| Z["Left untouched"]
-    B -->|yes| C["🤖 Claude\nanalysis"]
+    B -->|yes| C["🤖 LLM\nanalysis"]
     C --> D["📄 report.md"]
     C --> E["✏️ draft reply.md"]
     E --> F["👤 You review\n& edit"]
@@ -70,8 +74,9 @@ flowchart LR
 1. `check` connects to your inbox over IMAP and looks at recent messages.
 2. Each message is matched against `WATCH_SENDERS` / `WATCH_KEYWORDS` from
    your config. Non-matching mail is skipped and left untouched.
-3. Matching mail is sent to Claude, which returns a summary, category,
-   priority, suggested action, and a draft reply.
+3. Matching mail is sent to your configured AI provider (Claude or OpenAI),
+   which returns a summary, category, priority, suggested action, and a
+   draft reply.
 4. Two files are written to `data/drafts/`:
    - `<id>.report.md` — the analysis, for you to read.
    - `<id>.reply.md` — the editable draft reply (plain text with a small
@@ -87,9 +92,11 @@ Nothing is ever sent without you explicitly running `send`.
 ## Requirements
 
 - Python 3.9+
-- An [Anthropic API key](https://console.anthropic.com/) (pay-as-you-go — you
-  are billed by Anthropic only for the emails you actually analyze; the
-  project itself is free and open source)
+- An API key from **one** AI provider (pay-as-you-go — you are billed
+  directly by that provider only for the emails you actually analyze; the
+  project itself is free and open source):
+  - [Anthropic API key](https://console.anthropic.com/) (default), or
+  - [OpenAI API key](https://platform.openai.com/)
 - IMAP/SMTP access to your mailbox, usually via an **app-specific password**
   (see the provider table below)
 
@@ -115,7 +122,12 @@ Open `.env` and set:
 - `IMAP_HOST` / `IMAP_PORT` / `IMAP_USER` / `IMAP_PASSWORD` — your mailbox.
 - `SMTP_HOST` / `SMTP_PORT` — your outgoing server (`SMTP_USER`/`SMTP_PASSWORD`
   default to your IMAP credentials if left blank).
-- `ANTHROPIC_API_KEY` — your Claude API key.
+- `LLM_PROVIDER` — `anthropic` (default) or `openai`. Only the matching key
+  below is required — you never need both:
+  - `anthropic` → `ANTHROPIC_API_KEY` (+ optional `ANTHROPIC_MODEL`, default
+    `claude-sonnet-5`)
+  - `openai` → `OPENAI_API_KEY` (+ optional `OPENAI_MODEL`, default
+    `gpt-4o-mini`)
 - `WATCH_SENDERS` — comma-separated email addresses/domains to watch for,
   e.g. `boss@example.com,billing@vendor.com`.
 - `WATCH_KEYWORDS` — comma-separated words to watch for in the subject/body,
@@ -184,14 +196,14 @@ Start in: C:\path\to\mail-triage-agent
 ## Cost & privacy
 
 - The project itself is free — there is no subscription or hidden fee.
-- Each `check` run costs a small amount of Anthropic API usage, billed
-  directly to your own API key, only for the emails that actually match your
-  filters.
+- Each `check` run costs a small amount of API usage with **your chosen
+  provider** (Anthropic or OpenAI), billed directly to your own API key, only
+  for the emails that actually match your filters.
 - Your mail credentials and API key live only in your local `.env` file
   (already git-ignored) — they are never uploaded anywhere by this project.
-- Email content is sent to the Anthropic API for analysis only for messages
-  that match your `WATCH_SENDERS`/`WATCH_KEYWORDS` filters — everything else
-  is left untouched on the server.
+- Email content is sent to your configured AI provider's API for analysis
+  only for messages that match your `WATCH_SENDERS`/`WATCH_KEYWORDS` filters
+  — everything else is left untouched on the mail server.
 
 ## Troubleshooting
 
@@ -200,8 +212,10 @@ Start in: C:\path\to\mail-triage-agent
   enabled (required by Gmail/Outlook to issue app passwords).
 - **"Set at least one of WATCH_SENDERS or WATCH_KEYWORDS"** — your `.env` has
   neither filter set; add at least one.
-- **"Claude did not return valid JSON"** — transient model hiccup; just run
+- **"... did not return valid JSON"** — transient model hiccup; just run
   `check` again, the unprocessed message will be retried.
+- **"Unknown LLM_PROVIDER"** — `LLM_PROVIDER` in your `.env` must be exactly
+  `anthropic` or `openai`.
 - **No drafts appear** — check that the matching email is actually unread
   (the default `check` only scans unseen mail — pass `--include-seen` to scan
   read mail too).
