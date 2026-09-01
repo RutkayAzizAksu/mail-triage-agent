@@ -110,7 +110,7 @@ def cmd_send(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mail-triage-agent",
-        description="Filter incoming email by sender/keyword, analyze it with Claude, and prepare reply drafts for you to review and send.",
+        description="Filter incoming email by sender/keyword, check the sender's trust, analyze it with your chosen AI provider, and prepare reply drafts for you to review and send.",
     )
     parser.add_argument("--env-file", default=None, help="Path to a .env file (default: .env in the current directory)")
     sub = parser.add_subparsers(dest="command", required=True)
