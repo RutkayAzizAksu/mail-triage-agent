@@ -58,21 +58,23 @@ text).
 
 ```mermaid
 flowchart LR
-    A["Inbox"] -->|IMAP| B{"Matches sender<br/>or keyword?"}
-    B -->|no| Z["Left untouched"]
-    B -->|yes| C["LLM<br/>analysis"]
-    C --> D["report.md"]
-    C --> E["draft reply.md"]
-    E --> F["You review<br/>&amp; edit"]
-    F -->|"mail-triage-agent send"| G["SMTP"]
-    G --> H["Sent"]
+    A["Inbox"] -->|"IMAP"| B{"Sender or keyword match?"}
+    B -->|"no"| Z["Skipped"]
+    B -->|"yes"| C["Trust check"]
+    C --> D["AI analysis"]
+    D --> E["report.md"]
+    D --> F["draft reply.md"]
+    F --> G["You review and edit"]
+    G -->|"send"| H["SMTP"]
+    H --> I["Sent"]
 
     style A fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
     style C fill:#fdf0e8,stroke:#d97706,color:#1a1a1a
-    style D fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
+    style D fill:#fdf0e8,stroke:#d97706,color:#1a1a1a
     style E fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
-    style F fill:#eafbea,stroke:#22a55e,color:#1a1a1a
-    style H fill:#eafbea,stroke:#22a55e,color:#1a1a1a
+    style F fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
+    style G fill:#eafbea,stroke:#22a55e,color:#1a1a1a
+    style I fill:#eafbea,stroke:#22a55e,color:#1a1a1a
     style Z fill:#f3f4f6,stroke:#9ca3af,color:#1a1a1a
 ```
 
