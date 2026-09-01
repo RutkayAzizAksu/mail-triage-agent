@@ -56,26 +56,29 @@ text).
 
 ## How it works
 
-```mermaid
-flowchart LR
-    A["Inbox"] -->|"IMAP"| B{"Sender or keyword match?"}
-    B -->|"no"| Z["Skipped"]
-    B -->|"yes"| C["Trust check"]
-    C --> D["AI analysis"]
-    D --> E["report.md"]
-    D --> F["draft reply.md"]
-    F --> G["You review and edit"]
-    G -->|"send"| H["SMTP"]
-    H --> I["Sent"]
-
-    style A fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
-    style C fill:#fdf0e8,stroke:#d97706,color:#1a1a1a
-    style D fill:#fdf0e8,stroke:#d97706,color:#1a1a1a
-    style E fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
-    style F fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
-    style G fill:#eafbea,stroke:#22a55e,color:#1a1a1a
-    style I fill:#eafbea,stroke:#22a55e,color:#1a1a1a
-    style Z fill:#f3f4f6,stroke:#9ca3af,color:#1a1a1a
+```
+Inbox
+  │  IMAP fetch
+  v
+Sender/keyword match? ──no──> Skipped, left untouched
+  │ yes
+  v
+Trust check (SPF/DKIM/DMARC, Reply-To, brand impersonation)
+  │
+  v
+AI analysis ──> report.md (includes the trust check verdict)
+  │
+  v
+draft reply.md (plain text, yours to edit)
+  │
+  v
+You review & edit
+  │
+  v
+`mail-triage-agent send`
+  │
+  v
+SMTP ──> Sent
 ```
 
 1. `check` connects to your inbox over IMAP and looks at recent messages.
