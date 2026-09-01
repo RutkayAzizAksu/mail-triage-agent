@@ -56,30 +56,7 @@ text).
 
 ## How it works
 
-```
-Inbox
-  │  IMAP fetch
-  v
-Sender/keyword match? ──no──> Skipped, left untouched
-  │ yes
-  v
-Trust check (SPF/DKIM/DMARC, Reply-To, brand impersonation)
-  │
-  v
-AI analysis ──> report.md (includes the trust check verdict)
-  │
-  v
-draft reply.md (plain text, yours to edit)
-  │
-  v
-You review & edit
-  │
-  v
-`mail-triage-agent send`
-  │
-  v
-SMTP ──> Sent
-```
+![How Mail Triage Agent works: Inbox to IMAP filter, trust check, AI analysis, report and draft, your review, then SMTP send](docs/how-it-works.png)
 
 1. `check` connects to your inbox over IMAP and looks at recent messages.
 2. Each message is matched against `WATCH_SENDERS` / `WATCH_KEYWORDS` from
