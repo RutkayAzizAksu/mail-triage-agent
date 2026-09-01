@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Optional
 
 from .filters import EmailMessage
 
-SYSTEM_PROMPT = """You are an email triage assistant. You will be given the contents of one email.
-Analyze it and propose a reply. Respond with ONLY a JSON object (no markdown fences, no extra text)
-with exactly these fields:
+SYSTEM_PROMPT = """You are an email triage assistant. You will be given the contents of one email,
+plus a deterministic sender-trust check (SPF/DKIM/DMARC authentication, Reply-To mismatch, and
+brand-impersonation heuristics) that was already computed for you — trust that check's verdict,
+don't re-derive it yourself. Factor it into suggested_action and the drafted reply (e.g. urge caution
+before clicking links or replying with sensitive info if the trust check raised warnings).
+
+Respond with ONLY a JSON object (no markdown fences, no extra text) with exactly these fields:
 
 {
   "summary": "1-3 sentence summary of what the email is about",
@@ -20,6 +24,9 @@ with exactly these fields:
   "reply_body": "a complete, polite draft reply in the same language as the original email (empty string if needs_reply is false)"
 }
 """
+
+_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+_KNOWN_PROVIDERS = {"anthropic", "openai", "gemini", "custom"}
 
 
 @dataclass
@@ -38,7 +45,7 @@ class AnalyzerError(RuntimeError):
 
 
 def _call_anthropic(api_key: str, model: str, user_content: str) -> str:
-    import anthropic  # imported lazily so users who only use OpenAI don't need this installed
+    import anthropic  # imported lazily so users who don't use this provider don't need it installed
 
     client = anthropic.Anthropic(api_key=api_key)
     try:
@@ -56,10 +63,13 @@ def _call_anthropic(api_key: str, model: str, user_content: str) -> str:
     ).strip()
 
 
-def _call_openai(api_key: str, model: str, user_content: str) -> str:
-    import openai  # imported lazily so users who only use Anthropic don't need this installed
+def _call_openai_compatible(api_key: str, model: str, user_content: str, base_url: Optional[str] = None) -> str:
+    """Works with the official OpenAI API and any OpenAI-compatible chat-completions
+    endpoint: Gemini (Google's own compatibility layer), Groq, OpenRouter, Together,
+    DeepSeek, a local Ollama/LM Studio server, etc. — just point base_url at it."""
+    import openai  # imported lazily so users who don't use this provider don't need it installed
 
-    client = openai.OpenAI(api_key=api_key)
+    client = openai.OpenAI(api_key=api_key, base_url=base_url) if base_url else openai.OpenAI(api_key=api_key)
     try:
         response = client.chat.completions.create(
             model=model,
@@ -70,41 +80,47 @@ def _call_openai(api_key: str, model: str, user_content: str) -> str:
             ],
         )
     except openai.OpenAIError as exc:
-        raise AnalyzerError(f"OpenAI API call failed: {exc}") from exc
+        raise AnalyzerError(f"API call to {base_url or 'api.openai.com'} failed: {exc}") from exc
 
     return (response.choices[0].message.content or "").strip()
 
 
-_PROVIDERS: Dict[str, Callable[[str, str, str], str]] = {
-    "anthropic": _call_anthropic,
-    "openai": _call_openai,
-}
-
-
 class EmailAnalyzer:
     """Analyzes an email using whichever LLM provider the user configured
-    (bring your own API key — Anthropic Claude and OpenAI are both supported)."""
+    (bring your own API key): Anthropic Claude, OpenAI, Google Gemini, or any
+    other OpenAI-compatible API (Groq, OpenRouter, a local Ollama server, ...)."""
 
-    def __init__(self, provider: str, api_key: str, model: str):
+    def __init__(self, provider: str, api_key: str, model: str, base_url: Optional[str] = None):
         provider = provider.strip().lower()
-        if provider not in _PROVIDERS:
+        if provider not in _KNOWN_PROVIDERS:
             raise AnalyzerError(
-                f"Unknown LLM_PROVIDER {provider!r}. Supported providers: {', '.join(_PROVIDERS)}."
+                f"Unknown LLM_PROVIDER {provider!r}. Supported providers: {', '.join(sorted(_KNOWN_PROVIDERS))}."
             )
-        self._call = _PROVIDERS[provider]
         self.provider = provider
         self.api_key = api_key
         self.model = model
+        self.base_url = base_url
 
-    def analyze(self, message: EmailMessage) -> Analysis:
+    def _call(self, user_content: str) -> str:
+        if self.provider == "anthropic":
+            return _call_anthropic(self.api_key, self.model, user_content)
+        if self.provider == "gemini":
+            return _call_openai_compatible(self.api_key, self.model, user_content, base_url=_GEMINI_BASE_URL)
+        # "openai" (base_url=None -> api.openai.com) and "custom" (base_url from config)
+        # both speak the same OpenAI-compatible chat-completions shape.
+        return _call_openai_compatible(self.api_key, self.model, user_content, base_url=self.base_url)
+
+    def analyze(self, message: EmailMessage, trust_summary: str = "") -> Analysis:
         user_content = (
             f"From: {message.from_name} <{message.from_addr}>\n"
             f"Subject: {message.subject}\n"
-            f"Date: {message.date}\n\n"
-            f"{message.body[:8000]}"
+            f"Date: {message.date}\n"
         )
+        if trust_summary:
+            user_content += f"Sender-trust check: {trust_summary}\n"
+        user_content += f"\n{message.body[:8000]}"
 
-        text = self._call(self.api_key, self.model, user_content)
+        text = self._call(user_content)
 
         # Models sometimes wrap JSON in ```json fences despite instructions; strip them defensively.
         if text.startswith("```"):

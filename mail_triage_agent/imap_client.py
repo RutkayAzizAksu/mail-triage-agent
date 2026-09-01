@@ -117,6 +117,8 @@ class ImapClient:
                     subject=_decode(msg.get("Subject")),
                     date=_decode(msg.get("Date")),
                     body=_extract_body(msg).strip(),
+                    reply_to=_decode(msg.get("Reply-To")) or "",
+                    authentication_results=_decode(msg.get("Authentication-Results")) or "",
                 )
             )
         return messages

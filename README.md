@@ -12,17 +12,25 @@ sent automatically — every reply goes out only when you run `send` yourself.
 
 Works with **any standard IMAP/SMTP mail provider** — Gmail, Outlook /
 Microsoft 365, Yahoo, iCloud, Zoho, or most corporate mail servers — and lets
-you **bring your own AI provider and API key**: Anthropic Claude or OpenAI,
-your choice. It's a plain Python script you run on your own machine; your
-mail and API keys never leave your computer except for the two connections it
-makes on your behalf: your mail server (IMAP/SMTP) and your chosen AI
-provider's API (to analyze the email text).
+you **bring your own AI provider and API key**: Anthropic Claude, OpenAI,
+Google Gemini (free tier available), or literally any other OpenAI-compatible
+API (Groq, OpenRouter, a local Ollama server, ...). It's a plain Python
+script you run on your own machine; your mail and API keys never leave your
+computer except for the two connections it makes on your behalf: your mail
+server (IMAP/SMTP) and your chosen AI provider's API (to analyze the email
+text).
 
 ## Features
 
 - 🔍 **Filter by sender or keyword** — you decide what's worth analyzing.
-- 🤖 **Bring your own AI provider** — Anthropic Claude or OpenAI, selected by
-  one `.env` setting; the agent only ever uses the API key you provide.
+- 🤖 **Bring your own AI provider** — Anthropic Claude, OpenAI, Google Gemini
+  (has a free tier), or any other OpenAI-compatible API (Groq, OpenRouter,
+  a local Ollama server, ...) — selected by one `.env` setting. The agent
+  only ever uses the API key you provide.
+- 🛡️ **Sender trust check, before drafting anything** — every matched email
+  is checked for SPF/DKIM/DMARC authentication, Reply-To mismatches, and
+  brand-impersonation red flags first; the verdict is written to the report
+  and factored into the drafted reply.
 - 🧠 **LLM-powered analysis** — summary, category, priority, and a suggested
   action for every match.
 - ✏️ **Human-in-the-loop drafts** — every reply is a plain-text file you read
@@ -74,29 +82,48 @@ flowchart LR
 1. `check` connects to your inbox over IMAP and looks at recent messages.
 2. Each message is matched against `WATCH_SENDERS` / `WATCH_KEYWORDS` from
    your config. Non-matching mail is skipped and left untouched.
-3. Matching mail is sent to your configured AI provider (Claude or OpenAI),
-   which returns a summary, category, priority, suggested action, and a
-   draft reply.
-4. Two files are written to `data/drafts/`:
-   - `<id>.report.md` — the analysis, for you to read.
+3. **Before analyzing anything**, the sender is put through a deterministic
+   trust check: SPF/DKIM/DMARC authentication (read from the
+   `Authentication-Results` header your mail server already attaches),
+   Reply-To vs. From domain mismatches, and display-name brand-impersonation
+   heuristics (e.g. "PayPal Support" from a domain that isn't paypal.com).
+4. Matching mail — plus the trust-check verdict — is sent to your configured
+   AI provider, which returns a summary, category, priority, suggested
+   action, and a draft reply that takes the trust verdict into account.
+5. Two files are written to `data/drafts/`:
+   - `<id>.report.md` — the analysis, **including the sender trust check**,
+     for you to read.
    - `<id>.reply.md` — the editable draft reply (plain text with a small
      metadata header). Open it in any text editor and change anything you
      want.
-5. `send <file>` sends the (possibly edited) draft over SMTP, threaded as a
+6. `send <file>` sends the (possibly edited) draft over SMTP, threaded as a
    reply to the original message.
-6. Already-processed messages are remembered in `data/state.json`, so running
+7. Already-processed messages are remembered in `data/state.json`, so running
    `check` again (e.g. from a cron job) never creates duplicate drafts.
+
+The sender trust check is a heuristic, not a guarantee — it reads whatever
+your mail server already tells you (most providers, including Gmail and
+Outlook, attach `Authentication-Results`) rather than performing its own DNS
+lookups. Treat a ⚠️ as "look closer before trusting this," not as proof of a
+scam, and treat a ✅ the same way we treated it for the real "Link
+<notifications@link.com>" example this project's README was informed by:
+good signal, not a substitute for judgment.
 
 Nothing is ever sent without you explicitly running `send`.
 
 ## Requirements
 
 - Python 3.9+
-- An API key from **one** AI provider (pay-as-you-go — you are billed
-  directly by that provider only for the emails you actually analyze; the
-  project itself is free and open source):
+- An API key from **one** AI provider (pay-as-you-go, or free for some) —
+  you are billed directly by that provider only for the emails you actually
+  analyze; the project itself is free and open source:
   - [Anthropic API key](https://console.anthropic.com/) (default), or
-  - [OpenAI API key](https://platform.openai.com/)
+  - [OpenAI API key](https://platform.openai.com/), or
+  - [Google Gemini API key](https://aistudio.google.com/apikey) (has a free
+    tier), or
+  - any OpenAI-compatible API of your choice — [Groq](https://console.groq.com/keys)
+    (free tier), [OpenRouter](https://openrouter.ai/keys) (many free models),
+    or a fully free local [Ollama](https://ollama.com/) server
 - IMAP/SMTP access to your mailbox, usually via an **app-specific password**
   (see the provider table below)
 
@@ -122,12 +149,19 @@ Open `.env` and set:
 - `IMAP_HOST` / `IMAP_PORT` / `IMAP_USER` / `IMAP_PASSWORD` — your mailbox.
 - `SMTP_HOST` / `SMTP_PORT` — your outgoing server (`SMTP_USER`/`SMTP_PASSWORD`
   default to your IMAP credentials if left blank).
-- `LLM_PROVIDER` — `anthropic` (default) or `openai`. Only the matching key
-  below is required — you never need both:
+- `LLM_PROVIDER` — `anthropic` (default), `openai`, `gemini`, or `custom`.
+  Only the matching key(s) below are required:
   - `anthropic` → `ANTHROPIC_API_KEY` (+ optional `ANTHROPIC_MODEL`, default
     `claude-sonnet-5`)
   - `openai` → `OPENAI_API_KEY` (+ optional `OPENAI_MODEL`, default
     `gpt-4o-mini`)
+  - `gemini` → `GEMINI_API_KEY` (+ optional `GEMINI_MODEL`, default
+    `gemini-2.5-flash`) — has a free tier
+  - `custom` → `CUSTOM_API_KEY` + `CUSTOM_BASE_URL` + `CUSTOM_MODEL` — points
+    at **any** OpenAI-compatible chat-completions endpoint: Groq (free tier),
+    OpenRouter (many free models), a local Ollama server (fully free, no
+    internet required), Together, DeepSeek, etc. See `.env.example` for
+    ready-to-use base URLs.
 - `WATCH_SENDERS` — comma-separated email addresses/domains to watch for,
   e.g. `boss@example.com,billing@vendor.com`.
 - `WATCH_KEYWORDS` — comma-separated words to watch for in the subject/body,
@@ -215,7 +249,11 @@ Start in: C:\path\to\mail-triage-agent
 - **"... did not return valid JSON"** — transient model hiccup; just run
   `check` again, the unprocessed message will be retried.
 - **"Unknown LLM_PROVIDER"** — `LLM_PROVIDER` in your `.env` must be exactly
-  `anthropic` or `openai`.
+  `anthropic`, `openai`, `gemini`, or `custom`.
+- **Trust check always shows `unknown` for SPF/DKIM/DMARC** — your mail
+  server isn't attaching an `Authentication-Results` header (some smaller
+  or self-hosted servers don't). The rest of the trust check (Reply-To
+  mismatch, brand impersonation) still works.
 - **No drafts appear** — check that the matching email is actually unread
   (the default `check` only scans unseen mail — pass `--include-seen` to scan
   read mail too).

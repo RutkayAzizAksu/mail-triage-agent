@@ -13,6 +13,8 @@ class EmailMessage:
     subject: str
     date: str
     body: str
+    reply_to: str = ""
+    authentication_results: str = ""
 
 
 def matches(message: EmailMessage, senders: List[str], keywords: List[str], mode: str = "any") -> bool:

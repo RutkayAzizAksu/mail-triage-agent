@@ -8,8 +8,15 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Multi-provider AI support: `LLM_PROVIDER` now selects between `anthropic`
-  (default) and `openai`, so anyone can bring their own API key for either
-  provider. Only the selected provider's key is required.
+  (default), `openai`, `gemini` (free tier available), and `custom` (any
+  OpenAI-compatible endpoint — Groq, OpenRouter, a local Ollama server,
+  etc.), so anyone can bring their own API key, including free ones. Only
+  the selected provider's key/model is required.
+- Sender trust check: every matched email is checked for SPF/DKIM/DMARC
+  authentication, Reply-To vs. From domain mismatches, and display-name
+  brand-impersonation heuristics *before* it's analyzed or drafted. The
+  verdict is written to `report.md` and passed to the AI provider so the
+  drafted reply reflects it.
 
 ## [0.1.0] - 2026-09-01
 

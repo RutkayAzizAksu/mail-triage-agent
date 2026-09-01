@@ -9,6 +9,7 @@ import yaml
 
 from .analyzer import Analysis
 from .filters import EmailMessage
+from .trust import TrustCheck
 
 
 @dataclass
@@ -25,9 +26,27 @@ def _safe_slug(text: str, max_len: int = 40) -> str:
     return slug[:max_len] or "email"
 
 
-def write_report(drafts_dir: Path, draft_id: str, message: EmailMessage, analysis: Analysis) -> Path:
+def write_report(
+    drafts_dir: Path, draft_id: str, message: EmailMessage, analysis: Analysis, trust: TrustCheck
+) -> Path:
     drafts_dir.mkdir(parents=True, exist_ok=True)
     report_path = drafts_dir / f"{draft_id}.report.md"
+
+    trust_icon = "⚠️" if trust.is_suspicious else "✅"
+    trust_lines = [
+        "## Sender trust check",
+        "",
+        f"{trust_icon} **{trust.summary_line}**",
+        "",
+        f"- Sender domain: `{trust.sender_domain}`",
+        f"- SPF: `{trust.spf}` · DKIM: `{trust.dkim}` · DMARC: `{trust.dmarc}`",
+    ]
+    if trust.warnings:
+        trust_lines.append("")
+        trust_lines.append("Warnings:")
+        trust_lines.extend(f"- {w}" for w in trust.warnings)
+    trust_lines.append("")
+
     report_path.write_text(
         "\n".join(
             [
@@ -38,6 +57,7 @@ def write_report(drafts_dir: Path, draft_id: str, message: EmailMessage, analysi
                 f"- **Category:** {analysis.category}",
                 f"- **Priority:** {analysis.priority}",
                 "",
+                *trust_lines,
                 "## Summary",
                 analysis.summary,
                 "",
@@ -51,11 +71,13 @@ def write_report(drafts_dir: Path, draft_id: str, message: EmailMessage, analysi
     return report_path
 
 
-def write_reply_draft(drafts_dir: Path, message: EmailMessage, analysis: Analysis) -> DraftPaths:
+def write_reply_draft(
+    drafts_dir: Path, message: EmailMessage, analysis: Analysis, trust: TrustCheck
+) -> DraftPaths:
     drafts_dir.mkdir(parents=True, exist_ok=True)
     draft_id = f"{uuid.uuid4().hex[:8]}-{_safe_slug(message.subject)}"
 
-    report_path = write_report(drafts_dir, draft_id, message, analysis)
+    report_path = write_report(drafts_dir, draft_id, message, analysis, trust)
 
     reply_path = drafts_dir / f"{draft_id}.reply.md"
     frontmatter = {
@@ -67,7 +89,7 @@ def write_reply_draft(drafts_dir: Path, message: EmailMessage, analysis: Analysi
     }
     content = "---\n" + yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False) + "---\n\n"
     content += analysis.reply_body or (
-        "(Claude did not think this email needed a reply — edit this text yourself, "
+        "(The AI model did not think this email needed a reply — edit this text yourself, "
         "or just leave this draft unsent.)\n"
     )
     reply_path.write_text(content, encoding="utf-8")

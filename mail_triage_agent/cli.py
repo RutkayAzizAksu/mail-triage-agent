@@ -12,12 +12,15 @@ from .filters import matches
 from .imap_client import ImapClient, ImapError
 from .smtp_sender import SmtpError, send_draft
 from .state import ProcessedState
+from .trust import assess as assess_trust
 
 
 def cmd_check(args: argparse.Namespace) -> int:
     config = load_config(args.env_file)
     state = ProcessedState(config.state_file)
-    analyzer = EmailAnalyzer(config.llm_provider, config.llm_api_key, config.llm_model)
+    analyzer = EmailAnalyzer(
+        config.llm_provider, config.llm_api_key, config.llm_model, base_url=config.llm_base_url
+    )
 
     created = 0
     scanned = 0
@@ -35,13 +38,22 @@ def cmd_check(args: argparse.Namespace) -> int:
                 continue
 
             print(f"[match] {message.from_addr} — {message.subject!r}")
+
+            # Check sender trust (SPF/DKIM/DMARC, Reply-To mismatch, brand impersonation)
+            # BEFORE analyzing/drafting, so the trust verdict can inform the draft.
+            trust = assess_trust(
+                message.from_addr, message.from_name, message.reply_to, message.authentication_results
+            )
+            trust_icon = "⚠️ " if trust.is_suspicious else "✅ "
+            print(f"  {trust_icon}{trust.summary_line}")
+
             try:
-                analysis = analyzer.analyze(message)
+                analysis = analyzer.analyze(message, trust_summary=trust.summary_line)
             except AnalyzerError as exc:
                 print(f"  ! analysis failed, will retry next run: {exc}", file=sys.stderr)
                 continue
 
-            paths = write_reply_draft(config.drafts_dir, message, analysis)
+            paths = write_reply_draft(config.drafts_dir, message, analysis, trust)
             print(f"  -> report: {paths.report_path.name}")
             print(f"  -> draft:  {paths.reply_path.name}")
 
