@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a problem with Mail Triage Agent
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set WATCH_KEYWORDS=... in .env
+        2. Run `mail-triage-agent check`
+        3. See error
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "3.11.4"
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Mail provider
+      placeholder: "Gmail / Outlook / Yahoo / iCloud / other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output / error message
+      description: >
+        Paste the console output. Please redact any real email addresses,
+        credentials, API keys, or private email content first.
+      render: shell
+
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have not included real credentials, API keys, or private email content above.
+          required: true

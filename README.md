@@ -1,5 +1,10 @@
 # Mail Triage Agent
 
+[![CI](https://github.com/RutkayAzizAksu/mail-triage-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/RutkayAzizAksu/mail-triage-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Powered by Claude](https://img.shields.io/badge/powered%20by-Claude-d97706.svg)](https://www.anthropic.com/claude)
+
 A small, self-hosted agent that watches your inbox for emails from senders or
 containing keywords **you** choose, analyzes each match with Claude, and
 writes a report + a draft reply for you to review, edit, and send. Nothing is
@@ -11,6 +16,34 @@ plain Python script you run on your own machine; your mail and API keys never
 leave your computer except for the two connections it makes on your behalf:
 your mail server (IMAP/SMTP) and the Anthropic API (to analyze the email
 text).
+
+## Features
+
+- 🔍 **Filter by sender or keyword** — you decide what's worth Claude's time.
+- 🤖 **Claude-powered analysis** — summary, category, priority, and a
+  suggested action for every match.
+- ✏️ **Human-in-the-loop drafts** — every reply is a plain-text file you read
+  and edit before anything goes out; nothing sends itself.
+- 📬 **Provider-agnostic** — standard IMAP/SMTP, so it works with Gmail,
+  Outlook, Yahoo, iCloud, and most corporate mail servers.
+- 🔁 **Idempotent by design** — a local state file means re-running `check`
+  (e.g. from cron) never creates duplicate drafts.
+- 🔒 **Local-first** — credentials live only in your own `.env`; nothing is
+  ever sent anywhere except your mail server and the Anthropic API.
+- ✅ **Tested** — unit tests plus mocked end-to-end smoke tests, run on
+  Python 3.9–3.13 in CI on every push.
+
+## Table of contents
+
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [Setup](#setup)
+- [Usage](#usage)
+- [Cost & privacy](#cost--privacy)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## How it works
 
@@ -177,8 +210,20 @@ Start in: C:\path\to\mail-triage-agent
 
 ```bash
 pip install -r requirements.txt
+python -m py_compile mail_triage_agent/*.py tests/*.py
 python -m unittest discover -s tests -v
 ```
+
+CI runs the same checks on every push across Python 3.9–3.13 — see
+[.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
+workflow, and [CHANGELOG.md](CHANGELOG.md) for release history. Please
+review [SECURITY.md](SECURITY.md) before reporting anything credential- or
+privacy-related, and use a private report instead of a public issue for
+those.
 
 ## License
 
