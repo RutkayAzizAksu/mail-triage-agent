@@ -14,14 +14,24 @@ text).
 
 ## How it works
 
-```
-inbox ──IMAP──▶ filter (sender / keyword) ──▶ Claude analysis ──▶ report.md + draft reply.md
-                                                                          │
-                                                              you read & edit the draft
-                                                                          │
-                                                                    `check send`
-                                                                          │
-                                                                       SMTP ──▶ sent
+```mermaid
+flowchart LR
+    A["📥 Inbox"] -->|IMAP| B{"Matches sender\nor keyword?"}
+    B -->|no| Z["Left untouched"]
+    B -->|yes| C["🤖 Claude\nanalysis"]
+    C --> D["📄 report.md"]
+    C --> E["✏️ draft reply.md"]
+    E --> F["👤 You review\n& edit"]
+    F -->|"mail-triage-agent send"| G["📤 SMTP"]
+    G --> H["✅ Sent"]
+
+    style A fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
+    style C fill:#fdf0e8,stroke:#d97706,color:#1a1a1a
+    style D fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
+    style E fill:#f3f4f6,stroke:#6b7280,color:#1a1a1a
+    style F fill:#eafbea,stroke:#22a55e,color:#1a1a1a
+    style H fill:#eafbea,stroke:#22a55e,color:#1a1a1a
+    style Z fill:#f3f4f6,stroke:#9ca3af,color:#1a1a1a
 ```
 
 1. `check` connects to your inbox over IMAP and looks at recent messages.
