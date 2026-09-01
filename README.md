@@ -3,7 +3,7 @@
 [![CI](https://github.com/RutkayAzizAksu/mail-triage-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/RutkayAzizAksu/mail-triage-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-[![Powered by Claude](https://img.shields.io/badge/powered%20by-Claude-d97706.svg)](https://www.anthropic.com/claude)
+[![AI provider](https://img.shields.io/badge/AI%20provider-your%20choice-d97706.svg)](.env.example)
 
 A small, self-hosted agent that watches your inbox for emails from senders or
 containing keywords **you** choose, analyzes each match with an LLM, and

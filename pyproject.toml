@@ -1,6 +1,6 @@
 [project]
 name = "mail-triage-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "Filters incoming email by sender/keyword, analyzes it with Claude, and prepares reply drafts for you to review and send."
 readme = "README.md"
 requires-python = ">=3.9"
