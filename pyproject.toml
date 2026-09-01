@@ -1,7 +1,7 @@
 [project]
 name = "mail-triage-agent"
 version = "0.2.0"
-description = "Filters incoming email by sender/keyword, analyzes it with Claude, and prepares reply drafts for you to review and send."
+description = "Filters incoming email by sender/keyword, checks the sender's trust, analyzes it with your chosen AI provider, and prepares reply drafts for you to review and send."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
