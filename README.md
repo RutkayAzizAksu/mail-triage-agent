@@ -22,28 +22,25 @@ text).
 
 ## Features
 
-- 🔍 **Filter by sender or keyword** — you decide what's worth analyzing.
-- 🤖 **Bring your own AI provider** — Anthropic Claude, OpenAI, Google Gemini
-  (has a free tier), or any other OpenAI-compatible API (Groq, OpenRouter,
-  a local Ollama server, ...) — selected by one `.env` setting. The agent
-  only ever uses the API key you provide.
-- 🛡️ **Sender trust check, before drafting anything** — every matched email
-  is checked for SPF/DKIM/DMARC authentication, Reply-To mismatches, and
-  brand-impersonation red flags first; the verdict is written to the report
-  and factored into the drafted reply.
-- 🧠 **LLM-powered analysis** — summary, category, priority, and a suggested
-  action for every match.
-- ✏️ **Human-in-the-loop drafts** — every reply is a plain-text file you read
-  and edit before anything goes out; nothing sends itself.
-- 📬 **Provider-agnostic mail** — standard IMAP/SMTP, so it works with Gmail,
-  Outlook, Yahoo, iCloud, and most corporate mail servers.
-- 🔁 **Idempotent by design** — a local state file means re-running `check`
-  (e.g. from cron) never creates duplicate drafts.
-- 🔒 **Local-first** — credentials live only in your own `.env`; nothing is
-  ever sent anywhere except your mail server and your chosen AI provider.
-- ✅ **Tested** — unit tests, mocked end-to-end smoke tests, and a real
-  IMAP/SMTP network round-trip against a disposable local mail server, run on
-  Python 3.9–3.13 in CI on every push.
+- Filter by sender or keyword, so only the mail you actually care about gets analyzed.
+- Pick your own AI provider in `.env`: Anthropic Claude, OpenAI, Google Gemini
+  (has a free tier), or any other OpenAI-compatible API — Groq, OpenRouter,
+  a local Ollama server, whatever you'd rather use.
+- Before it drafts anything, it checks the sender: SPF/DKIM/DMARC authentication,
+  a Reply-To that doesn't match the From address, a display name impersonating
+  a known brand. The verdict goes in the report and feeds into the draft.
+- Analysis gives you a summary, category, priority, and suggested action per email.
+- Replies are plain text files you read and edit yourself. Nothing goes out
+  until you run `send`.
+- Standard IMAP/SMTP under the hood, so it works with Gmail, Outlook, Yahoo,
+  iCloud, and most corporate mail servers.
+- Re-running `check` (from cron, say) won't duplicate drafts — it keeps a
+  local state file of what it's already processed.
+- Credentials stay in your own `.env`. Nothing leaves your machine except
+  calls to your mail server and whichever AI provider you picked.
+- Covered by unit tests, a mocked end-to-end run, and a real IMAP/SMTP
+  round-trip against a disposable local mail server — all run in CI on
+  Python 3.9–3.13.
 
 ## Table of contents
 
@@ -230,9 +227,10 @@ Start in: C:\path\to\mail-triage-agent
 ## Cost & privacy
 
 - The project itself is free — there is no subscription or hidden fee.
-- Each `check` run costs a small amount of API usage with **your chosen
-  provider** (Anthropic or OpenAI), billed directly to your own API key, only
-  for the emails that actually match your filters.
+- Each `check` run costs a small amount of API usage with whichever provider
+  you configured, billed directly to your own API key, only for the emails
+  that actually match your filters — free if you're using Gemini's free
+  tier, Groq, or a local Ollama model.
 - Your mail credentials and API key live only in your local `.env` file
   (already git-ignored) — they are never uploaded anywhere by this project.
 - Email content is sent to your configured AI provider's API for analysis
